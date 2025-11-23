@@ -1,73 +1,135 @@
-import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import express from 'express';
-import * as z from 'zod/v4';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {
+    CallToolRequestSchema,
+    ErrorCode,
+    ListResourcesRequestSchema,
+    ListResourceTemplatesRequestSchema,
+    ListToolsRequestSchema,
+    McpError,
+    ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 
-// Create an MCP server
-const server = new McpServer({
-    name: 'demo-server',
-    version: '1.0.0'
-});
+class CalculatorServer {
+    private server: Server;
 
-// Add an addition tool
-server.registerTool(
-    'add',
-    {
-        title: 'Addition Tool',
-        description: 'Add two numbers',
-        inputSchema: { a: z.number(), b: z.number() },
-        outputSchema: { result: z.number() }
-    },
-    async ({ a, b }) => {
-        const output = { result: a + b };
-        return {
-            content: [{ type: 'text', text: JSON.stringify(output) }],
-            structuredContent: output
-        };
-    }
-);
-
-// Add a dynamic greeting resource
-server.registerResource(
-    'greeting',
-    new ResourceTemplate('greeting://{name}', { list: undefined }),
-    {
-        title: 'Greeting Resource',
-        description: 'Dynamic greeting generator'
-    },
-    async (uri, { name }) => ({
-        contents: [
+    constructor() {
+        this.server = new Server(
             {
-                uri: uri.href,
-                text: `Hello, ${name}!`
+                name: 'demo-server',
+                version: '1.0.0',
+            },
+            {
+                capabilities: {
+                    resources: {},
+                    tools: {},
+                },
             }
-        ]
-    })
-);
+        );
 
-// Set up Express and HTTP transport
-const app = express();
-app.use(express.json());
+        this.setupResourceHandlers();
+        this.setupToolHandlers();
 
-app.post('/mcp', async (req, res) => {
-    // Create a new transport for each request to prevent request ID collisions
-    const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
-        enableJsonResponse: true
-    });
+        // Error handling
+        this.server.onerror = (error) => console.error('[MCP Error]', error);
+        process.on('SIGINT', async () => {
+            await this.server.close();
+            process.exit(0);
+        });
+    }
 
-    res.on('close', () => {
-        transport.close();
-    });
+    private setupResourceHandlers() {
+        // Dynamic greeting resource template
+        this.server.setRequestHandler(
+            ListResourceTemplatesRequestSchema,
+            async () => ({
+                resourceTemplates: [
+                    {
+                        uriTemplate: 'greeting://{name}',
+                        name: 'Greeting Resource',
+                        description: 'Dynamic greeting generator',
+                        mimeType: 'text/plain',
+                    },
+                ],
+            })
+        );
 
-    await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
-});
+        this.server.setRequestHandler(
+            ReadResourceRequestSchema,
+            async (request) => {
+                const match = request.params.uri.match(/^greeting:\/\/(.+)$/);
+                if (!match) {
+                    throw new McpError(
+                        ErrorCode.InvalidRequest,
+                        `Invalid URI format: ${request.params.uri}`
+                    );
+                }
+                const name = decodeURIComponent(match[1]);
 
-const port = parseInt(process.env.PORT || '3000');
-app.listen(port, () => {
-    console.log(`Demo MCP Server running on http://localhost:${port}/mcp`);
-}).on('error', error => {
-    console.error('Server error:', error);
-    process.exit(1);
-});
+                return {
+                    contents: [
+                        {
+                            uri: request.params.uri,
+                            text: `Hello, ${name}!`,
+                        },
+                    ],
+                };
+            }
+        );
+    }
+
+    private setupToolHandlers() {
+        this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+            tools: [
+                {
+                    name: 'add',
+                    description: 'Add two numbers',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            a: { type: 'number', description: 'First number' },
+                            b: { type: 'number', description: 'Second number' },
+                        },
+                        required: ['a', 'b'],
+                    },
+                },
+            ],
+        }));
+
+        this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+            if (request.params.name !== 'add') {
+                throw new McpError(
+                    ErrorCode.MethodNotFound,
+                    `Unknown tool: ${request.params.name}`
+                );
+            }
+
+            const args = request.params.arguments;
+            if (typeof args?.a !== 'number' || typeof args?.b !== 'number') {
+                throw new McpError(
+                    ErrorCode.InvalidParams,
+                    'Invalid parameters for add tool'
+                );
+            }
+
+            const result = args.a + args.b;
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: JSON.stringify({ result }, null, 2),
+                    },
+                ],
+            };
+        });
+    }
+
+    async run() {
+        const transport = new StdioServerTransport();
+        await this.server.connect(transport);
+        console.error('Calculator MCP server running on stdio');
+    }
+}
+
+const server = new CalculatorServer();
+server.run().catch(console.error);
