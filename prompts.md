@@ -1,1 +1,1 @@
-Popraw zawartość pliku /home/pawel/git/githubcom/MCPCalculatorSample/README.md tak aby znalazł się tam krótki wstęp na temat zawartosci tego projektu. Niech będzie tam rozdział poświecony instalacji a także rozdział 'szybkie wdrożenie' opisujący kroki potrzebne do zbudowania serwera MCP któ©y będzie działał z wtyczką VS Code agenta Cline
+popraw plik @/README.md wpisując więcej szczegółów na temat przykłądowego użycia a także nazwy samego serwera MCP jaka będzie widoczna w Cline. Dodaj też sekcję ze szczegółami jak będzie to widać przy kofiguracji CLine
