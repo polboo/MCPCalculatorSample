@@ -1,0 +1,20 @@
+{
+  "name": "mcp-calculator-sample",
+  "version": "1.0.0",
+  "description": "Sample MCP server with calculator tool and greeting resource",
+  "main": "build/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

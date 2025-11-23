@@ -1,0 +1,1 @@
+popraw plik @/README.md wpisując więcej szczegółów na temat przykłądowego użycia a także nazwy samego serwera MCP jaka będzie widoczna w Cline. Dodaj też sekcję ze szczegółami jak będzie to widać przy kofiguracji CLine
